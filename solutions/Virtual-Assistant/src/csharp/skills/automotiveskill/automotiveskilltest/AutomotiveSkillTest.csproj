@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Yaml\test_available_settings.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\automotiveskill\AutomotiveSkill.csproj" />
   </ItemGroup>
 
