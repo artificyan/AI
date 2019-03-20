@@ -1,6 +1,8 @@
 ﻿using AutomotiveSkill.Models;
 using AutomotiveSkill.Yaml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using SharpYaml;
+using SharpYaml.Events;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -88,7 +90,13 @@ namespace AutomotiveSkillTest.Yaml
 
             using (TextReader reader = new StreamReader(resourceAssembly.GetManifestResourceStream(settingFile)))
             {
-                var availableSettings = YamlParseUtil.ParseDocument<List<AvailableSetting>>(reader);
+                //var parser = new Parser(reader);
+                //while (parser.MoveNext())
+                //{
+                //    System.Console.WriteLine(parser.Current);
+                //}
+
+                var availableSettings = YamlParseUtil.ParseDocumentAsList<AvailableSetting>(reader);
                 CollectionAssert.AreEqual(expectedAvailableSettings, availableSettings);
             }
         }

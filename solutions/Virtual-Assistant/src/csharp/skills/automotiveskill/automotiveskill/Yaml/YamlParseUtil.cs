@@ -20,35 +20,60 @@ namespace AutomotiveSkill.Yaml
         }
 
         /// <summary>
-        /// Parse an entire YAML document as an instance of the given type.
+        /// Parse an entire YAML document as an instance of the given non-generic type.
         /// Note that this method is not suitable to parse parts of a YAML document
         /// because it throws an exception if the end of the stream has not been reached after parsing an instance of the given type.
         /// </summary>
-        /// <typeparam name="T">The type to parse the YAML document as.</typeparam>
+        /// <typeparam name="T">The type to parse the YAML document as. This must not be a generic type.</typeparam>
         /// <param name="reader">A reader over the YAML data.</param>
         /// <returns>The parsed instance.</returns>
-        public static T ParseDocument<T>(TextReader reader)
+        public static T ParseDocumentAsNonGeneric<T>(TextReader reader)
         {
             var parser = new Parser(reader);
+            SkipDocumentStart(parser);
 
-            // This is necessary to make the parser start looking at the input.
-            parser.MoveNext();
+            var result = NonGenericFromYaml<T>(parser);
 
-            while (parser.Current is StreamStart || parser.Current is DocumentStart)
-            {
-                MoveNext(parser);
-            }
+            CheckDocumentEnd(parser);
+            return result;
+        }
 
-            var result = FromYaml<T>(parser);
+        /// <summary>
+        /// Parse an entire YAML document as a list with the given (non-generic) element type.
+        /// Note that this method is not suitable to parse parts of a YAML document
+        /// because it throws an exception if the end of the stream has not been reached after parsing an instance of the given type.
+        /// </summary>
+        /// <typeparam name="TElement">The type of the list elements. This must not be a generic type.</typeparam>
+        /// <param name="reader">A reader over the YAML data.</param>
+        /// <returns>The parsed list.</returns>
+        public static List<TElement> ParseDocumentAsList<TElement>(TextReader reader)
+        {
+            var parser = new Parser(reader);
+            SkipDocumentStart(parser);
 
-            while (parser.MoveNext())
-            {
-                if (!(parser.Current is StreamEnd || parser.Current is DocumentEnd))
-                {
-                    throw new YamlParseException($"Expected end of stream at {parser.Current.Start}.");
-                }
-            }
+            var result = ListFromYaml<TElement>(parser);
 
+            CheckDocumentEnd(parser);
+            return result;
+        }
+
+        /// <summary>
+        /// Parse an entire YAML document as a dictionary.
+        /// Note that this method is not suitable to parse parts of a YAML document
+        /// because it throws an exception if the end of the stream has not been reached after parsing an instance of the given type.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys. This must not be a generic type.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values. This must not be a generic type.</typeparam>
+        /// <param name="reader">A reader over the YAML data.</param>
+        /// <returns>The parsed list.</returns>
+        public static Dictionary<TKey, TValue> ParseDocumentAsDictionary<TKey, TValue>(TextReader reader)
+        {
+            var parser = new Parser(reader);
+            SkipDocumentStart(parser);
+
+            var result = new Dictionary<TKey, TValue>(); // TODO DictionaryFromYaml<TKey, TValue>(parser);
+
+            CheckDocumentEnd(parser);
             return result;
         }
 
@@ -65,7 +90,7 @@ namespace AutomotiveSkill.Yaml
                 throw new YamlParseException($"Expected scalar at {parser.Current.Start}.");
             }
 
-            MoveNext(parser, "scalar");
+            MoveNextAndCheckNotStreamEnd(parser);
 
             return scalar.Value;
         }
@@ -146,48 +171,41 @@ namespace AutomotiveSkill.Yaml
         /// Parse a list of values.
         /// This method would typically be called from the 'FromYaml' method of a custom class.
         /// </summary>
-        /// <typeparam name="T">The type of the list elements.</typeparam>
+        /// <typeparam name="TElement">The type of the list elements.</typeparam>
         /// <param name="parser">The current YAML parser.</param>
         /// <returns>The parsed list.</returns>
-        internal static List<T> ListFromYaml<T>(IParser parser)
+        internal static List<TElement> ListFromYaml<TElement>(IParser parser)
         {
-            return (List<T>)(object)ListFromYaml(parser, typeof(T));
+            return ListFromYaml<TElement>(parser, typeof(TElement));
         }
 
-        /// <summary>
-        /// Parse a value of an arbitrary type.
-        /// This method would typically be called from the 'FromYaml' method of a custom class.
-        /// </summary>
-        /// <typeparam name="T">The type of value to parse. Custom types must have a static 'FromYaml' method that accepts an IParser and returns an object of that type.</typeparam>
-        /// <param name="parser">The current YAML parser.</param>
-        /// <returns>The parsed value.</returns>
-        internal static T FromYaml<T>(IParser parser)
-        {
-            return (T)FromYaml(parser, typeof(T));
-        }
-
-        private static List<object> ListFromYaml(IParser parser, Type elementType)
+        private static List<TElement> ListFromYaml<TElement>(IParser parser, Type elementType)
         {
             if (!(parser.Current is SequenceStart))
             {
                 throw new YamlParseException($"Expected start of sequence at {parser.Current.Start}.");
             }
 
-            MoveNext(parser, "sequence item or end of sequence");
+            MoveNextAndCheckNotStreamEnd(parser, "sequence item or end of sequence");
 
-            List<object> list = new List<object>();
+            List<TElement> list = new List<TElement>();
             while (!(parser.Current is SequenceEnd))
             {
-                list.Add(FromYaml(parser, elementType));
-                MoveNext(parser, "sequence item or end of sequence");
+                list.Add((TElement)NonGenericFromYaml(parser, elementType));
+                MoveNextAndCheckNotStreamEnd(parser, "sequence item or end of sequence");
             }
 
-            MoveNext(parser);
+            MoveNextAndCheckNotStreamEnd(parser);
 
             return list;
         }
 
-        private static object FromYaml(IParser parser, Type type)
+        private static T NonGenericFromYaml<T>(IParser parser)
+        {
+            return (T)NonGenericFromYaml(parser, typeof(T));
+        }
+
+        private static object NonGenericFromYaml(IParser parser, Type type)
         {
             if (typeof(string) == type)
             {
@@ -209,16 +227,21 @@ namespace AutomotiveSkill.Yaml
             {
                 return DoubleFromYaml(parser);
             }
-            else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
-            {
-                var typeArgs = type.GetGenericArguments();
-                return ListFromYaml(parser, typeArgs[0]);
-            }
 
+            // TODO maybe we can make the generics work if we use reflection to construct the List or Dictionary object that we want to return, just to make sure it has the right element type
+            //else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+            //{
+            //    var typeArgs = type.GetGenericArguments();
+            //    return ListFromYaml<object>(parser, typeArgs[0]);
+            //}
+            // TODO dictionary
+
+            object result;
+            ConsumeMappingStart(parser);
             try
             {
                 var method = type.GetMethod("FromYaml");
-                return method.Invoke(null, new object[] { parser });
+                result = method.Invoke(null, new object[] { parser });
             }
             catch (Exception e)
             {
@@ -229,14 +252,59 @@ namespace AutomotiveSkill.Yaml
 
                 throw new YamlParseException($"Type {type} does not have a static 'FromYaml' method.", e);
             }
+
+            ConsumeMappingEnd(parser);
+            return result;
         }
 
-        private static void MoveNext(IParser parser)
+        private static void SkipDocumentStart(IParser parser)
         {
-            MoveNext(parser, string.Empty);
+            // This is necessary to make the parser start looking at the input.
+            MoveNextAndCheckNotStreamEnd(parser, "start of stream or document");
+
+            while (parser.Current is StreamStart || parser.Current is DocumentStart)
+            {
+                MoveNextAndCheckNotStreamEnd(parser);
+            }
         }
 
-        private static void MoveNext(IParser parser, string expectation)
+        private static void CheckDocumentEnd(IParser parser)
+        {
+            while (parser.MoveNext())
+            {
+                if (!(parser.Current is StreamEnd || parser.Current is DocumentEnd))
+                {
+                    throw new YamlParseException($"Expected end of document or stream at {parser.Current.Start}.");
+                }
+            }
+        }
+
+        private static void ConsumeMappingStart(IParser parser)
+        {
+            if (!(parser.Current is MappingStart))
+            {
+                throw new YamlParseException($"Expected start of mapping at {parser.Current.Start}.");
+            }
+
+            MoveNextAndCheckNotStreamEnd(parser, "mapping key or end of mapping");
+        }
+
+        private static void ConsumeMappingEnd(IParser parser)
+        {
+            if (!(parser.Current is MappingEnd))
+            {
+                throw new YamlParseException($"Expected end of mapping at {parser.Current.Start}.");
+            }
+
+            MoveNextAndCheckNotStreamEnd(parser);
+        }
+
+        private static void MoveNextAndCheckNotStreamEnd(IParser parser)
+        {
+            MoveNextAndCheckNotStreamEnd(parser, string.Empty);
+        }
+
+        private static void MoveNextAndCheckNotStreamEnd(IParser parser, string expectation)
         {
             if (!parser.MoveNext() || parser.Current is StreamEnd || parser.Current is DocumentEnd)
             {

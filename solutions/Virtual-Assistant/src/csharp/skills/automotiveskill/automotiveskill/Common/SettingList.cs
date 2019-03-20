@@ -46,13 +46,13 @@ namespace AutomotiveSkill.Common
 
             using (StreamReader reader = new StreamReader(resourceAssembly.GetManifestResourceStream(availableSettingsFileName)))
             {
-                var availableSettings = YamlParseUtil.ParseDocument<List<AvailableSetting>>(reader);
+                var availableSettings = YamlParseUtil.ParseDocumentAsList<AvailableSetting>(reader);
                 BuildSettingSearchIndexes(availableSettings, availableSettingsFileName);
             }
 
             using (StreamReader reader = new StreamReader(resourceAssembly.GetManifestResourceStream(alternativeSettingsFileName)))
             {
-                this.alternativeNameMap = YamlParseUtil.ParseDocument<Dictionary<string, SettingAlternativeNames>>(reader);
+                this.alternativeNameMap = YamlParseUtil.ParseDocumentAsDictionary<string, SettingAlternativeNames>(reader);
 
                 if (this.alternativeNameMap.TryGetValue(DefaultAlternativeValueNamesKey, out SettingAlternativeNames settingAlternativeNames))
                 {

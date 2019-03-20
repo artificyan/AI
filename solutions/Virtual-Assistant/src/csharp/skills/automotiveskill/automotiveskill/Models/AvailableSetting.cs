@@ -4,9 +4,10 @@
 namespace AutomotiveSkill.Models
 {
     using System.Collections.Generic;
+    using SharpYaml;
 
     /// <summary>
-    /// A setting that is available on the current device, but not necessarily supported through natural language interactions.
+    /// A setting that is available on the current device and supported through natural language interactions.
     /// </summary>
     public class AvailableSetting
     {
@@ -53,5 +54,14 @@ namespace AutomotiveSkill.Models
         /// </summary>
         /// <value>Settings that are included.</value>
         public IList<string> IncludedSettings { get; set; }
+
+        internal static AvailableSetting FromYaml(IParser parser)
+        {
+            AvailableSetting result = new AvailableSetting();
+
+
+
+            return result;
+        }
     }
 }

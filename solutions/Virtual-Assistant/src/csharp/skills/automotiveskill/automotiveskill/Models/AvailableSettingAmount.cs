@@ -1,6 +1,9 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+using AutomotiveSkill.Yaml;
+using SharpYaml;
+
 namespace AutomotiveSkill.Models
 {
     /// <summary>
@@ -27,5 +30,28 @@ namespace AutomotiveSkill.Models
         /// </summary>
         /// <value>Maximum amount for a setting.</value>
         public double? Max { get; set; }
+
+        internal static AvailableSettingAmount FromYaml(IParser parser)
+        {
+            AvailableSettingAmount result = new AvailableSettingAmount();
+
+            while (YamlParseUtil.TryStringFromYaml(parser, out string key))
+            {
+                switch (key)
+                {
+                    case "unit":
+                        result.Unit = YamlParseUtil.StringFromYaml(parser);
+                        break;
+                    case "min":
+                        result.Min = YamlParseUtil.DoubleFromYaml(parser);
+                        break;
+                    case "max":
+                        result.Max = YamlParseUtil.DoubleFromYaml(parser);
+                        break;
+                }
+            }
+
+            return result;
+        }
     }
 }
